@@ -39,7 +39,7 @@ jobs:
 
       - name: Package artifact
         run: |
-          mkdir -p artifacts
+          mkdir -p artifacts/$(dirname $ARTIFACT_NAME)
           # Adjust this to the real binary path(s). This packs everything under build/bin if present,
           # otherwise packs the whole build dir as fallback.
           if [ -d $BUILD_DIR/bin ]; then
