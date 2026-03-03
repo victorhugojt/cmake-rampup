@@ -1,9 +1,10 @@
 #include <stdio.h>
-#include "common.h"
+#include "common_utils.h"
+#include "math_utils.h"
 
 int main(int argc, char *argv[]) {
     printf("Hello, World!\n");
-    printf("add(1, 2) = %d\n", add(1, 2));
-    printf("subtract(1, 2) = %d\n", subtract(1, 2));
+    print_result("add", add(1, 2));
+    print_result("subtract", subtract(1, 2.0));
     return 0;
 }
