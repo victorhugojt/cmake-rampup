@@ -49,13 +49,14 @@ jobs:
           fi
         shell: bash
 
+      # Use JF_ACCESS_TOKEN (recommended) to avoid password encryption 404.
+      # Create token: Artifactory → User Menu → Edit Profile → Generate API Key / Access Token
       - name: Setup JFrog CLI
         continue-on-error: true
         uses: jfrog/setup-jfrog-cli@v4
         env:
           JF_URL: ${{ secrets.ARTIFACTORY_URL }}
-          JF_USER: ${{ secrets.ARTIFACTORY_USER }}
-          JF_PASSWORD: ${{ secrets.ARTIFACTORY_PASSWORD }}
+          JF_ACCESS_TOKEN: ${{ secrets.ARTIFACTORY_ACCESS_TOKEN }}
 
       - name: Upload to Artifactory
         continue-on-error: true
