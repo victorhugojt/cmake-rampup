@@ -49,20 +49,23 @@ jobs:
           fi
         shell: bash
 
-      - name: Upload to Artifactory (via curl)
+      - name: Setup JFrog CLI
+        if: ${{ secrets.ARTIFACTORY_URL != '' }}
+        uses: jfrog/setup-jfrog-cli@v4
+        env:
+          JF_URL: ${{ secrets.ARTIFACTORY_URL }}
+          JF_USER: ${{ secrets.ARTIFACTORY_USER }}
+          JF_PASSWORD: ${{ secrets.ARTIFACTORY_PASSWORD }}
+
+      - name: Upload to Artifactory
+        if: ${{ secrets.ARTIFACTORY_URL != '' }}
         continue-on-error: true
         env:
-          ART_URL: ${{ secrets.ARTIFACTORY_URL }}
           ART_REPO: ${{ secrets.ARTIFACTORY_REPO }}
-          ART_USER: ${{ secrets.ARTIFACTORY_USER }}
-          ART_PASSWORD: ${{ secrets.ARTIFACTORY_PASSWORD }}
         run: |
-          if [ -z "$ART_URL" ] || [ -z "$ART_REPO" ]; then
-            echo "Artifactory details missing; skipping upload."
+          if [ -z "$ART_REPO" ]; then
+            echo "ARTIFACTORY_REPO not set; skipping upload."
             exit 0
           fi
           FILENAME="$(basename $ARTIFACT_NAME)"
-          ART_PATH="${ART_URL%/}/artifactory/${ART_REPO}/${FILENAME}"
-          echo "Uploading to $ART_PATH"
-          curl --fail --silent --show-error -u "${ART_USER}:${ART_PASSWORD}" \
-            -T "artifacts/$ARTIFACT_NAME" "$ART_PATH"
+          jf rt upload "artifacts/$ARTIFACT_NAME" "${ART_REPO}/${FILENAME}"
