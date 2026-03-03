@@ -1,0 +1,66 @@
+name: CI - Build, Test, Publish
+
+on:
+  push:
+    branches:
+      - main
+      - complex-structure
+  pull_request:
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    env:
+      BUILD_DIR: build
+      ARTIFACT_NAME: ${{ github.repository }}-${{ github.run_id }}.tar.gz
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build build-essential tar curl
+
+      - name: Configure (CMake)
+        run: cmake -S . -B $BUILD_DIR -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build $BUILD_DIR -- -j$(nproc)
+
+      - name: Run tests
+        run: |
+          if [ -f $BUILD_DIR/CTestTestfile.cmake ]; then
+            cmake --build $BUILD_DIR --target test || ctest --test-dir $BUILD_DIR --output-on-failure
+          else
+            echo "No CTest config found; skipping tests."
+          fi
+
+      - name: Package artifact
+        run: |
+          mkdir -p artifacts
+          # Adjust this to the real binary path(s). This packs everything under build/bin if present,
+          # otherwise packs the whole build dir as fallback.
+          if [ -d $BUILD_DIR/bin ]; then
+            tar -czf artifacts/$ARTIFACT_NAME -C $BUILD_DIR bin
+          else
+            tar -czf artifacts/$ARTIFACT_NAME -C $BUILD_DIR .
+          fi
+        shell: bash
+
+      - name: Upload to Artifactory (via curl)
+        env:
+          ART_URL: ${{ secrets.ARTIFACTORY_URL }}
+          ART_REPO: ${{ secrets.ARTIFACTORY_REPO }}
+          ART_USER: ${{ secrets.ARTIFACTORY_USER }}
+          ART_PASSWORD: ${{ secrets.ARTIFACTORY_PASSWORD }} # or API key
+        run: |
+          if [ -z "$ART_URL" ] || [ -z "$ART_REPO" ]; then
+            echo "Artifactory details missing; skipping upload."
+            exit 1
+          fi
+          ART_PATH="${ART_URL%/}/artifactory/${ART_REPO}/${{ github.repository }}/$(basename artifacts/$ARTIFACT_NAME)"
+          echo "Uploading to $ART_PATH"
+          curl --fail --silent --show-error -u "${ART_USER}:${ART_PASSWORD}" \
+            -T "artifacts/$ARTIFACT_NAME" "$ART_PATH"
