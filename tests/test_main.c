@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <assert.h>
-#include "common.h"
+#include "math_utils.h"
 
 int main(int argc, char *argv[]) {
     assert(add(1, 2) == 3);

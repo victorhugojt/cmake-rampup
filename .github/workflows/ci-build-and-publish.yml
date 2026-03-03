@@ -1,0 +1,69 @@
+name: CI - Build, Test, Publish
+
+on:
+  push:
+    branches:
+      - main
+      - complex-structure
+  pull_request:
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    env:
+      BUILD_DIR: build
+      ARTIFACT_NAME: ${{ github.repository }}-${{ github.run_id }}.tar.gz
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build build-essential tar curl
+
+      - name: Configure (CMake)
+        run: cmake -S . -B $BUILD_DIR -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build $BUILD_DIR -- -j$(nproc)
+
+      - name: Run tests
+        run: |
+          if [ -f $BUILD_DIR/CTestTestfile.cmake ]; then
+            cmake --build $BUILD_DIR --target test || ctest --test-dir $BUILD_DIR --output-on-failure
+          else
+            echo "No CTest config found; skipping tests."
+          fi
+
+      - name: Package artifact
+        run: |
+          mkdir -p artifacts/$(dirname $ARTIFACT_NAME)
+          # Adjust this to the real binary path(s). This packs everything under build/bin if present,
+          # otherwise packs the whole build dir as fallback.
+          if [ -d $BUILD_DIR/bin ]; then
+            tar -czf artifacts/$ARTIFACT_NAME -C $BUILD_DIR bin
+          else
+            tar -czf artifacts/$ARTIFACT_NAME -C $BUILD_DIR .
+          fi
+        shell: bash
+
+      # Use JF_ACCESS_TOKEN (recommended) to avoid password encryption 404.
+      # Create token: Artifactory → User Menu → Edit Profile → Generate API Key / Access Token
+      - name: Setup JFrog CLI
+        uses: jfrog/setup-jfrog-cli@v4
+        env:
+          JF_URL: ${{ secrets.ARTIFACTORY_URL }}
+          JF_ACCESS_TOKEN: ${{ secrets.ARTIFACTORY_ACCESS_TOKEN }}
+
+      - name: Upload to Artifactory
+        env:
+          ART_REPO: ${{ secrets.ARTIFACTORY_REPO }}
+        run: |
+          if [ -z "$ART_REPO" ]; then
+            echo "ARTIFACTORY_REPO not set; skipping upload."
+            exit 0
+          fi
+          FILENAME="$(basename $ARTIFACT_NAME)"
+          jf rt upload "artifacts/$ARTIFACT_NAME" "${ART_REPO}/${FILENAME}"
