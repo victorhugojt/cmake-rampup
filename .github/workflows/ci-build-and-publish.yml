@@ -50,7 +50,7 @@ jobs:
         shell: bash
 
       - name: Setup JFrog CLI
-        if: ${{ secrets.ARTIFACTORY_URL != '' }}
+        continue-on-error: true
         uses: jfrog/setup-jfrog-cli@v4
         env:
           JF_URL: ${{ secrets.ARTIFACTORY_URL }}
@@ -58,7 +58,6 @@ jobs:
           JF_PASSWORD: ${{ secrets.ARTIFACTORY_PASSWORD }}
 
       - name: Upload to Artifactory
-        if: ${{ secrets.ARTIFACTORY_URL != '' }}
         continue-on-error: true
         env:
           ART_REPO: ${{ secrets.ARTIFACTORY_REPO }}
