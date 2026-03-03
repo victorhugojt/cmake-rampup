@@ -51,16 +51,26 @@ jobs:
 
       - name: Upload to Artifactory (via curl)
         env:
+          # e.g. https://vhjt.jfrog.io
           ART_URL: ${{ secrets.ARTIFACTORY_URL }}
+          # e.g. artifactory-build-info (or generic-local for tar.gz artifacts)
           ART_REPO: ${{ secrets.ARTIFACTORY_REPO }}
           ART_USER: ${{ secrets.ARTIFACTORY_USER }}
-          ART_PASSWORD: ${{ secrets.ARTIFACTORY_PASSWORD }} # or API key
+          ART_PASSWORD: ${{ secrets.ARTIFACTORY_PASSWORD }}
+          # Path within repo, e.g. "cmake-rampup" or "my-org/cmake-rampup". Empty = repo root.
+          ART_PATH_PREFIX: ${{ secrets.ARTIFACTORY_PATH_PREFIX }}
         run: |
           if [ -z "$ART_URL" ] || [ -z "$ART_REPO" ]; then
             echo "Artifactory details missing; skipping upload."
             exit 1
           fi
-          ART_PATH="${ART_URL%/}/artifactory/${ART_REPO}/${{ github.repository }}/$(basename artifacts/$ARTIFACT_NAME)"
+          # Build URL: {ART_URL}/artifactory/{ART_REPO}/{path-prefix}/{filename}
+          FILENAME="$(basename $ARTIFACT_NAME)"
+          if [ -n "$ART_PATH_PREFIX" ]; then
+            ART_PATH="${ART_URL%/}/artifactory/${ART_REPO}/${ART_PATH_PREFIX}/${FILENAME}"
+          else
+            ART_PATH="${ART_URL%/}/artifactory/${ART_REPO}/${FILENAME}"
+          fi
           echo "Uploading to $ART_PATH"
           curl --fail --silent --show-error -u "${ART_USER}:${ART_PASSWORD}" \
             -T "artifacts/$ARTIFACT_NAME" "$ART_PATH"
