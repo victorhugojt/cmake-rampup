@@ -4,35 +4,54 @@ on:
   push:
     branches:
       - main
-      - complex-structure
+      - ci-parallel
   pull_request:
 
 jobs:
   build-and-publish:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: macos-latest
+            platform: macos
+    runs-on: ${{ matrix.os }}
     env:
       BUILD_DIR: build
-      ARTIFACT_NAME: ${{ github.repository }}-${{ github.run_id }}.tar.gz
+      ARTIFACT_NAME: ${{ github.repository }}-${{ matrix.platform }}-${{ github.run_id }}.tar.gz
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install build deps
+      - name: Install build deps (Linux)
+        if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake ninja-build build-essential tar curl
+
+      - name: Install build deps (macOS)
+        if: matrix.os == 'macos-latest'
+        run: brew install cmake ninja
 
       - name: Configure (CMake)
         run: cmake -S . -B $BUILD_DIR -G Ninja -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
-        run: cmake --build $BUILD_DIR -- -j$(nproc)
+        run: |
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            cmake --build $BUILD_DIR -- -j$(nproc)
+          else
+            cmake --build $BUILD_DIR -- -j$(sysctl -n hw.ncpu)
+          fi
 
       - name: Run tests
         run: |
           if [ -f $BUILD_DIR/CTestTestfile.cmake ]; then
-            cmake --build $BUILD_DIR --target test || ctest --test-dir $BUILD_DIR --output-on-failure
+            NPROC=$(nproc 2>/dev/null || sysctl -n hw.ncpu)
+            ctest --test-dir $BUILD_DIR --output-on-failure -j$NPROC
           else
             echo "No CTest config found; skipping tests."
           fi
